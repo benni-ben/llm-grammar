@@ -1,0 +1,38 @@
+# GBNF Grammar for FunctionGemma-Delia Dispatcher
+# Forces the model to output EXACTLY: thought + tool_call + EOS
+# Prevents infinite JSON loops and hallucinated parameters
+#
+# Usage with Ollama:
+#   ollama run functiongemma-delia --grammar "$(cat dispatcher.gbnf)"
+#
+# Usage with llama.cpp:
+#   ./main -m model.gguf --grammar-file dispatcher.gbnf -p "..."
+
+# Root rule: thought block followed by exactly one tool call, then stop
+root ::= thought-block tool-call eos
+
+# Thought block: optional reasoning before the tool call
+thought-block ::= "thought\n" thought-content "\n"
+thought-content ::= [^\n<]+ 
+
+# Tool call structure: XML wrapper around JSON
+tool-call ::= "<tool_call>" tool-json "</tool_call>"
+
+# Tool JSON: dispatcher tools only have name + reasoning
+tool-json ::= "{" ws name-field "," ws arguments-field ws "}"
+
+# Name field: one of the four dispatcher tools
+name-field ::= "\"name\"" ws ":" ws tool-name
+tool-name ::= "\"call_coder\"" | "\"call_reviewer\"" | "\"call_planner\"" | "\"call_executor\""
+
+# Arguments field: ONLY reasoning parameter allowed
+arguments-field ::= "\"arguments\"" ws ":" ws "{" ws reasoning-field ws "}"
+reasoning-field ::= "\"reasoning\"" ws ":" ws reasoning-value
+reasoning-value ::= "\"" reasoning-chars "\""
+reasoning-chars ::= [^"\\]* ( "\\" ["\\/bfnrt] [^"\\]* )*
+
+# End of sequence token
+eos ::= "<eos>" | "<end_of_turn>"
+
+# Whitespace (optional)
+ws ::= [ \t\n]*
